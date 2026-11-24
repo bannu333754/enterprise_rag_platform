@@ -1,0 +1,60 @@
+﻿{
+  "title": "Enterprise RAG Telemetry Dashboard",
+  "tags": ["rag", "fastapi", "observability"],
+  "timezone": "browser",
+  "schemaVersion": 16,
+  "panels": [
+    {
+      "id": 1,
+      "title": "RAG Query Request Rate (RPS)",
+      "type": "graph",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "rate(rag_http_requests_total[1m])",
+          "legendFormat": "{{endpoint}} ({{status}})"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Tokens Synthesized per Second",
+      "type": "graph",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "rate(rag_llm_tokens_generated_total[1m])",
+          "legendFormat": "Tokens/Sec ({{model}})"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Vector Retrieval & Re-rank Latencies (p95)",
+      "type": "graph",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(rag_vector_retrieval_seconds_bucket[1m])) by (le))",
+          "legendFormat": "p95 Retrieval Latency"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(rag_cross_encoder_rerank_seconds_bucket[1m])) by (le))",
+          "legendFormat": "p95 Rerank Latency"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Active Streaming Sessions",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        {
+          "expr": "rag_active_streaming_sessions",
+          "legendFormat": "Active Sessions"
+        }
+      ]
+    }
+  ]
+}

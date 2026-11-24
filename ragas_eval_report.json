@@ -1,0 +1,22 @@
+[
+  {
+    "name": "Benchmark 1: High-Quality Grounded Retrieval",
+    "scores": {
+      "faithfulness": 0.7498,
+      "answer_relevance": 0.6795,
+      "context_precision": 0.5,
+      "composite_ragas_score": 0.6717,
+      "passed_gate": true
+    }
+  },
+  {
+    "name": "Benchmark 2: Hallucination / Ungrounded Claim Test",
+    "scores": {
+      "faithfulness": 0.6136,
+      "answer_relevance": 0.7847,
+      "context_precision": 1.0,
+      "composite_ragas_score": 0.7593,
+      "passed_gate": false
+    }
+  }
+]

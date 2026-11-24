@@ -1,0 +1,1 @@
+﻿import os; from win32com.client import Dispatch; d = os.path.join(os.path.expanduser("~"), "Desktop"); s = Dispatch("WScript.Shell").CreateShortcut(os.path.join(d, "Enterprise RAG Studio.lnk")); s.TargetPath = os.path.abspath("run_rag_app.bat"); s.WorkingDirectory = os.path.abspath("."); s.Save(); print("SUCCESS: Shortcut Created on Desktop!")

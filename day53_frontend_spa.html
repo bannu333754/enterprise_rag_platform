@@ -1,0 +1,385 @@
+﻿<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 53 - Production RAG Workspace</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: { 50: '#f0fdf4', 500: '#22c55e', 600: '#16a34a', 900: '#14532d' },
+            surface: { 800: '#1e293b', 900: '#0f172a', 950: '#020617' }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #0f172a; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    .markdown-body p { margin-bottom: 0.75rem; }
+    .markdown-body pre { background: #020617; padding: 0.75rem; border-radius: 0.5rem; overflow-x: auto; margin-bottom: 0.75rem; border: 1px solid #1e293b; }
+    .markdown-body code { font-family: monospace; font-size: 0.875rem; }
+  </style>
+</head>
+<body class="bg-surface-950 text-slate-100 flex h-screen overflow-hidden font-sans antialiased">
+
+  <!-- Left Sidebar: Document Management & System Health -->
+  <aside class="w-80 bg-surface-900 border-r border-slate-800 flex flex-col justify-between">
+    <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <div class="p-2 bg-emerald-500/10 text-emerald-400 rounded-lg">
+          <i data-lucide="layers" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <h1 class="text-sm font-bold tracking-wide text-white">RAG WORKSPACE</h1>
+          <p class="text-xs text-slate-400">Day 53 Decoupled SPA</p>
+        </div>
+      </div>
+      <span id="connectionBadge" class="flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
+        <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span> Connecting
+      </span>
+    </div>
+
+    <!-- Document Ingestion Control -->
+    <div class="p-4 flex-1 overflow-y-auto custom-scrollbar space-y-4">
+      <div>
+        <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Ingest Internal PDF</label>
+        <div class="border-2 border-dashed border-slate-700 hover:border-emerald-500/50 rounded-xl p-4 text-center transition bg-slate-900/50">
+          <input type="file" id="pdfUpload" accept=".pdf" class="hidden" onchange="uploadDocument()" />
+          <label for="pdfUpload" class="cursor-pointer flex flex-col items-center gap-2">
+            <i data-lucide="upload-cloud" class="w-8 h-8 text-slate-400"></i>
+            <span class="text-xs text-slate-300 font-medium">Click to upload PDF</span>
+            <span class="text-[10px] text-slate-500">Non-blocking background ingest</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Live Document Catalog -->
+      <div>
+        <div class="flex items-center justify-between mb-2">
+          <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Repository Index</label>
+          <button onclick="refreshCatalog()" class="text-slate-400 hover:text-white transition">
+            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
+        <div id="catalogList" class="space-y-2">
+          <p class="text-xs text-slate-500">No documents indexed yet.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Session Footnote -->
+    <div class="p-4 border-t border-slate-800 bg-surface-950/50 flex items-center justify-between text-xs text-slate-400">
+      <span>Session: <code id="sessionIdDisplay" class="text-emerald-400 font-mono">...</code></span>
+      <button onclick="resetSession()" title="Reset Session" class="hover:text-white">
+        <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main Center Chat Workspace -->
+  <main class="flex-1 flex flex-col h-full bg-surface-950 relative">
+
+    <!-- Top Real-Time Stage Bar -->
+    <header class="h-14 border-b border-slate-800 bg-surface-900/50 backdrop-blur px-6 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Active Pipeline Stage:</span>
+        <div id="pipelineStageBadge" class="flex items-center gap-2 px-2.5 py-1 rounded-md text-xs font-medium bg-slate-800 text-slate-300 border border-slate-700">
+          <i data-lucide="circle-dot" class="w-3.5 h-3.5 text-slate-400"></i>
+          <span id="stageLabel">IDLE</span>
+        </div>
+      </div>
+      <div id="statusMessage" class="text-xs text-slate-400 italic">Ready for queries</div>
+    </header>
+
+    <!-- Message Viewport -->
+    <section id="chatViewport" class="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6">
+      <div class="flex gap-4 max-w-3xl mx-auto">
+        <div class="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center shrink-0">
+          <i data-lucide="bot" class="w-4 h-4"></i>
+        </div>
+        <div class="space-y-1">
+          <p class="text-xs font-semibold text-slate-400">Day 53 Decoupled Assistant</p>
+          <div class="text-sm text-slate-300 leading-relaxed bg-surface-900 p-4 rounded-xl border border-slate-800">
+            Connected to the decoupled async FastAPI engine. Ingest documents on the left dock or submit queries below to experience live bi-directional WebSocket token streaming.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Interactive Citations Drawer (Appears dynamically upon retrieval) -->
+    <div id="citationsDock" class="max-w-3xl mx-auto w-full px-6 mb-2 hidden">
+      <div class="bg-surface-900 border border-slate-800 rounded-xl p-3">
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2 text-xs font-bold text-slate-300 uppercase tracking-wider">
+            <i data-lucide="bookmark" class="w-3.5 h-3.5 text-emerald-400"></i> Retrieved Grounding Citations
+          </div>
+          <span id="citationCount" class="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-400">0 Sources</span>
+        </div>
+        <div id="citationsContent" class="grid grid-cols-2 gap-2 text-xs"></div>
+      </div>
+    </div>
+
+    <!-- Query Input Bar -->
+    <footer class="p-4 border-t border-slate-800 bg-surface-900/40">
+      <div class="max-w-3xl mx-auto relative flex items-center">
+        <textarea
+          id="queryInput"
+          rows="1"
+          placeholder="Ask an enterprise question across indexed documents..."
+          class="w-full bg-surface-900 border border-slate-700 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-sm text-slate-100 rounded-xl px-4 py-3 pr-12 resize-none custom-scrollbar outline-none transition"
+          onkeydown="handleKeyDown(event)"
+        ></textarea>
+        <button
+          id="sendButton"
+          onclick="sendQuery()"
+          class="absolute right-2.5 p-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition disabled:opacity-50"
+        >
+          <i data-lucide="send" class="w-4 h-4"></i>
+        </button>
+      </div>
+    </footer>
+  </main>
+
+  <script>
+    const API_BASE = "http://127.0.0.1:8000";
+    let sessionId = "session_" + Math.random().toString(36).substring(2, 9);
+    document.getElementById("sessionIdDisplay").innerText = sessionId;
+
+    let ws = null;
+    let currentAssistantBubble = null;
+    let accumulatedText = "";
+
+    function initWebSocket() {
+      const wsUrl = `ws://127.0.0.1:8000/ws/chat/${sessionId}`;
+      ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        const badge = document.getElementById("connectionBadge");
+        badge.className = "flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
+        badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Live Connected`;
+      };
+
+      ws.onclose = () => {
+        const badge = document.getElementById("connectionBadge");
+        badge.className = "flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20";
+        badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-rose-400"></span> Disconnected`;
+        setTimeout(initWebSocket, 3000);
+      };
+
+      ws.onmessage = (event) => {
+        const payload = JSON.parse(event.data);
+
+        if (payload.type === "event") {
+          updateStage(payload.stage, payload.message);
+        } else if (payload.type === "citations") {
+          renderCitations(payload.data);
+        } else if (payload.type === "token") {
+          streamToken(payload.delta);
+        } else if (payload.type === "done") {
+          finishStream();
+        } else if (payload.type === "error") {
+          renderError(payload.message);
+        }
+      };
+    }
+
+    function updateStage(stage, message) {
+      document.getElementById("stageLabel").innerText = stage;
+      document.getElementById("statusMessage").innerText = message;
+    }
+
+    function renderCitations(citations) {
+      const dock = document.getElementById("citationsDock");
+      const content = document.getElementById("citationsContent");
+      const count = document.getElementById("citationCount");
+
+      if (!citations || citations.length === 0) {
+        dock.classList.add("hidden");
+        return;
+      }
+
+      dock.classList.remove("hidden");
+      count.innerText = `${citations.length} Sources`;
+      content.innerHTML = citations.map(c => `
+        <div class="p-2.5 rounded-lg bg-surface-950 border border-slate-800 hover:border-slate-700 transition">
+          <div class="flex items-center justify-between text-[11px] font-semibold text-emerald-400 mb-1">
+            <span>${c.source} (p.${c.page})</span>
+            <span class="text-slate-400 font-mono">Score: ${c.score}</span>
+          </div>
+          <p class="text-[11px] text-slate-400 leading-snug line-clamp-2">${c.snippet}</p>
+        </div>
+      `).join("");
+    }
+
+    function appendUserMessage(text) {
+      const viewport = document.getElementById("chatViewport");
+      const msgDiv = document.createElement("div");
+      msgDiv.className = "flex gap-4 max-w-3xl mx-auto justify-end";
+      msgDiv.innerHTML = `
+        <div class="space-y-1 text-right">
+          <p class="text-xs font-semibold text-slate-400">You</p>
+          <div class="text-sm text-white leading-relaxed bg-emerald-600/30 p-4 rounded-xl border border-emerald-500/30">
+            ${text}
+          </div>
+        </div>
+        <div class="w-8 h-8 rounded-lg bg-slate-800 text-slate-300 border border-slate-700 flex items-center justify-center shrink-0">
+          <i data-lucide="user" class="w-4 h-4"></i>
+        </div>
+      `;
+      viewport.appendChild(msgDiv);
+      lucide.createIcons();
+      viewport.scrollTop = viewport.scrollHeight;
+    }
+
+    function createAssistantBubble() {
+      const viewport = document.getElementById("chatViewport");
+      const msgDiv = document.createElement("div");
+      msgDiv.className = "flex gap-4 max-w-3xl mx-auto";
+      msgDiv.innerHTML = `
+        <div class="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center shrink-0">
+          <i data-lucide="bot" class="w-4 h-4"></i>
+        </div>
+        <div class="space-y-1 flex-1">
+          <p class="text-xs font-semibold text-slate-400">Day 53 Decoupled Assistant</p>
+          <div class="markdown-body text-sm text-slate-200 leading-relaxed bg-surface-900 p-4 rounded-xl border border-slate-800 min-h-[48px]">
+            <span class="inline-block w-2 h-4 bg-emerald-400 animate-pulse"></span>
+          </div>
+        </div>
+      `;
+      viewport.appendChild(msgDiv);
+      lucide.createIcons();
+      viewport.scrollTop = viewport.scrollHeight;
+      accumulatedText = "";
+      return msgDiv.querySelector(".markdown-body");
+    }
+
+    function streamToken(delta) {
+      if (!currentAssistantBubble) {
+        currentAssistantBubble = createAssistantBubble();
+      }
+      accumulatedText += delta;
+      currentAssistantBubble.innerHTML = marked.parse(accumulatedText);
+      const viewport = document.getElementById("chatViewport");
+      viewport.scrollTop = viewport.scrollHeight;
+    }
+
+    function finishStream() {
+      currentAssistantBubble = null;
+      document.getElementById("sendButton").disabled = false;
+      document.getElementById("queryInput").disabled = false;
+      document.getElementById("queryInput").focus();
+      updateStage("COMPLETED", "Response complete.");
+    }
+
+    function renderError(err) {
+      if (!currentAssistantBubble) {
+        currentAssistantBubble = createAssistantBubble();
+      }
+      currentAssistantBubble.innerHTML = `<span class="text-rose-400 font-mono">Error: ${err}</span>`;
+      finishStream();
+    }
+
+    function sendQuery() {
+      const input = document.getElementById("queryInput");
+      const question = input.value.trim();
+      if (!question || !ws || ws.readyState !== WebSocket.OPEN) return;
+
+      appendUserMessage(question);
+      input.value = "";
+      document.getElementById("sendButton").disabled = true;
+      input.disabled = true;
+
+      // Reset citations dock on new query
+      document.getElementById("citationsDock").classList.add("hidden");
+
+      ws.send(JSON.stringify({
+        question: question,
+        target_doc: "ALL"
+      }));
+    }
+
+    function handleKeyDown(e) {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        sendQuery();
+      }
+    }
+
+    async function uploadDocument() {
+      const fileInput = document.getElementById("pdfUpload");
+      if (!fileInput.files || fileInput.files.length === 0) return;
+
+      const file = fileInput.files[0];
+      const formData = new FormData();
+      formData.append("file", file);
+
+      updateStage("BACKGROUND_INGEST", `Uploading ${file.name}...`);
+
+      try {
+        const res = await fetch(`${API_BASE}/api/v1/upload`, {
+          method: "POST",
+          body: formData
+        });
+        if (res.ok) {
+          refreshCatalog();
+          updateStage("QUEUED", "Document queued for background parsing.");
+        } else {
+          updateStage("ERROR", "Upload failed.");
+        }
+      } catch (err) {
+        updateStage("ERROR", err.message);
+      }
+    }
+
+    async function refreshCatalog() {
+      try {
+        const res = await fetch(`${API_BASE}/api/v1/documents`);
+        if (res.ok) {
+          const docs = await res.json();
+          const list = document.getElementById("catalogList");
+          if (docs.length === 0) {
+            list.innerHTML = `<p class="text-xs text-slate-500">No documents indexed yet.</p>`;
+            return;
+          }
+          list.innerHTML = docs.map(d => `
+            <div class="p-2 bg-surface-950 border border-slate-800 rounded-lg text-xs flex items-center justify-between">
+              <div class="truncate pr-2">
+                <p class="font-medium text-slate-300 truncate">${d.filename}</p>
+                <p class="text-[10px] text-slate-500">${d.total_chunks} chunks</p>
+              </div>
+              <span class="px-1.5 py-0.5 rounded text-[9px] font-semibold ${
+                d.status === 'COMPLETED' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+              }">${d.status}</span>
+            </div>
+          `).join("");
+        }
+      } catch (err) {
+        console.error("Catalog refresh error:", err);
+      }
+    }
+
+    function resetSession() {
+      sessionId = "session_" + Math.random().toString(36).substring(2, 9);
+      document.getElementById("sessionIdDisplay").innerText = sessionId;
+      document.getElementById("chatViewport").innerHTML = "";
+      if (ws) ws.close();
+      initWebSocket();
+    }
+
+    window.onload = () => {
+      lucide.createIcons();
+      initWebSocket();
+      refreshCatalog();
+    };
+  </script>
+</body>
+</html>
